@@ -1,0 +1,15 @@
+inference:
+  run_name: default_inference
+  prediction_date: null
+  use_latest_available_model: true
+  output_format: parquet
+  output_dir: reports/tables/predictions
+
+selection:
+  return_top_n: 30
+  sort_by: probability
+  descending: true
+
+explainability:
+  save_feature_importance: true
+  save_top_feature_contributions: false

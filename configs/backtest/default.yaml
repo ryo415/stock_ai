@@ -1,0 +1,30 @@
+backtest:
+  name: top_n_hold_60bd
+  benchmark: topix
+  rebalance_frequency: monthly
+  holding_period_business_days: 60
+
+portfolio:
+  selection_method: top_n_by_probability
+  top_n: 5
+  weighting: equal_weight
+  max_position_weight: 0.05
+
+costs:
+  fee_bps: 10
+  slippage_bps: 5
+
+execution:
+  buy_timing: next_open
+  sell_timing: next_open
+  allow_overlap_positions: false
+
+walk_forward:
+  prediction_start_date: "2024-01-01"
+  training_start_date: "2015-01-01"
+  min_training_rows: 252
+
+reporting:
+  save_trades: true
+  save_equity_curve: true
+  save_summary_metrics: true

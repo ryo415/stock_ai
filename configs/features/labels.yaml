@@ -1,0 +1,19 @@
+label:
+  name: rise_10pct_in_60bd
+  task_type: binary_classification
+  horizon_business_days: 60
+  return_column: future_return_60bd
+  threshold:
+    operator: ">="
+    value: 0.10
+
+price_reference:
+  base_price_column: adjusted_close
+  future_price_column: adjusted_close_t_plus_60bd
+
+sample_definition:
+  unit: ticker_date
+  key_columns:
+    - date
+    - ticker
+  drop_rows_with_missing_future_price: true

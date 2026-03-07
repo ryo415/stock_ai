@@ -1,0 +1,50 @@
+feature_set:
+  name: baseline_v1
+  description: baseline feature set using price, fundamentals, and macro data
+
+groups:
+  price:
+    enabled: true
+    features:
+      - return_1d
+      - return_5d
+      - return_20d
+      - volatility_20d
+      - volume_change_5d
+      - ma_gap_5d
+      - ma_gap_20d
+      - ma_gap_60d
+
+  relative_strength:
+    enabled: true
+    features:
+      - excess_return_vs_topix_20d
+      - excess_return_vs_nikkei225_20d
+
+  fundamentals:
+    enabled: true
+    features:
+      - market_cap
+      - per
+      - pbr
+      - roe
+      - revenue_growth_yoy
+      - operating_margin
+
+  macro:
+    enabled: true
+    features:
+      - usd_jpy
+      - policy_rate
+      - cpi_yoy
+      - nikkei225_return_20d
+      - topix_return_20d
+
+missing_values:
+  numeric_strategy: median_by_train_window
+  categorical_strategy: most_frequent
+  drop_if_missing_ratio_over: 0.4
+
+scaling:
+  for_linear_models: standard_scaler
+  for_tree_models: none

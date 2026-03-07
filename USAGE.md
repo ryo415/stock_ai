@@ -1,0 +1,324 @@
+# USAGE
+
+このファイルは、`stock_ai` を実際に使うときの操作手順をまとめたものです。
+現在の実装に合わせて、まずは手動実行ベースの運用を前提にしています。
+
+## 前提
+
+- Python 3.11 以上
+- このリポジトリ直下で作業する
+- 依存関係をインストール済みであること
+
+```bash
+pip install -e .
+```
+
+EDINET を使う場合だけ、事前に API キーを設定します。
+
+```bash
+export EDINET_API_KEY=your_api_key
+```
+
+## まず確認すること
+
+設定を確認したいとき:
+
+```bash
+python -m stock_ai config list
+python -m stock_ai config show data universe
+python -m stock_ai config show train baseline_logreg
+python -m stock_ai config show train baseline_lightgbm
+python -m stock_ai config show backtest default
+```
+
+## ユースケース 1: 初回セットアップ
+
+最初に全体を一通り動かす場合:
+
+```bash
+python -m stock_ai data fetch-prices
+python -m stock_ai data fetch-macro
+python -m stock_ai data normalize-prices
+python -m stock_ai data normalize-macro
+python -m stock_ai data build-universe
+python -m stock_ai features build-labels
+python -m stock_ai features build-dataset
+python -m stock_ai train run --config baseline_logreg
+python -m stock_ai train run --config baseline_lightgbm
+python -m stock_ai backtest walk-forward --config default --train-config baseline_logreg
+python -m stock_ai backtest walk-forward --config default --train-config baseline_lightgbm
+python -m stock_ai report compare-models
+```
+
+この流れで、価格取得から比較レポート生成まで一通り確認できます。
+
+## ユースケース 2: 流動性条件でユニバースを更新したい
+
+候補銘柄の価格履歴をもとに、平均売買代金で投資対象を自動生成する場合:
+
+```bash
+python -m stock_ai data fetch-prices
+python -m stock_ai data normalize-prices
+python -m stock_ai data build-universe
+```
+
+ユニバース設定は [configs/data/universe.yaml](/home/ryo/Programs/stock_ai/configs/data/universe.yaml) の以下を見ます。
+
+- `universe.liquidity_filter.min_average_daily_value_jpy`
+- `universe.liquidity_filter.lookback_days`
+- `universe.liquidity_filter.min_observation_days`
+- `universe.liquidity_filter.max_tickers`
+- `universe.ticker_selection.candidate_tickers`
+
+生成結果は `data/processed/universe/latest.json` と `data/processed/universe/liquidity_universe_*.json` に保存されます。
+
+## ユースケース 3: 最新データで学習用 dataset を更新したい
+
+価格と market 系を更新して dataset を作り直す場合:
+
+```bash
+python -m stock_ai data fetch-prices
+python -m stock_ai data fetch-macro
+python -m stock_ai data normalize-prices
+python -m stock_ai data normalize-macro
+python -m stock_ai features build-labels
+python -m stock_ai features build-dataset
+```
+
+出力先:
+
+- `data/interim/prices/`
+- `data/interim/market/`
+- `data/processed/labels/`
+- `data/processed/datasets/`
+
+## ユースケース 4: 財務データも更新したい
+
+EDINET の raw 書類を取得して中間特徴量まで更新する場合:
+
+```bash
+export EDINET_API_KEY=your_api_key
+python -m stock_ai data fetch-fundamentals --tickers 7203.T 6758.T
+python -m stock_ai data normalize-fundamentals
+python -m stock_ai features build-dataset
+```
+
+注意:
+
+- `fetch-fundamentals` は EDINET API キーが必要です
+- 今の実装は CSV ZIP ベースの抽出です
+- 実書類によっては項目名の揺れで抽出精度の調整が必要です
+
+## ユースケース 5: Logistic Regression を学習したい
+
+```bash
+python -m stock_ai train run --config baseline_logreg
+```
+
+入力 dataset を明示したい場合:
+
+```bash
+python -m stock_ai train run \
+  --config baseline_logreg \
+  --dataset-input-path data/processed/datasets/dataset_baseline_v1_YYYYMMDDTHHMMSSZ.csv
+```
+
+出力先:
+
+- `models/`
+- `reports/tables/train_*.json`
+- `data/metadata/train_*.json`
+
+## ユースケース 6: LightGBM を学習したい
+
+```bash
+python -m stock_ai train run --config baseline_lightgbm
+```
+
+LightGBM は非線形な関係を拾いやすい一方で、過学習しやすいので、単発の test 指標だけでなく walk-forward も併せて見ます。
+
+## ユースケース 7: ある時点の推奨候補を見たい
+
+最新日付で推論する場合:
+
+```bash
+python -m stock_ai inference predict --config default --train-config baseline_logreg
+```
+
+LightGBM を使う場合:
+
+```bash
+python -m stock_ai inference predict --config default --train-config baseline_lightgbm
+```
+
+日付を指定したい場合:
+
+```bash
+python -m stock_ai inference predict \
+  --config default \
+  --train-config baseline_lightgbm \
+  --prediction-date 2025-10-02
+```
+
+出力先:
+
+- `reports/tables/predictions/`
+- `data/metadata/`
+
+見ればよい列:
+
+- `ticker`
+- `probability`
+- `prediction`
+
+## ユースケース 8: 固定モデルで簡易バックテストしたい
+
+1つの学習済みモデルで全期間をスコアして簡易評価する場合:
+
+```bash
+python -m stock_ai backtest run --config default --train-config baseline_logreg
+```
+
+これは最初の確認用です。実運用に近い評価を見たい場合は、次の walk-forward を優先します。
+
+## ユースケース 9: 実運用に近い walk-forward 評価をしたい
+
+Logistic Regression:
+
+```bash
+python -m stock_ai backtest walk-forward --config default --train-config baseline_logreg
+```
+
+LightGBM:
+
+```bash
+python -m stock_ai backtest walk-forward --config default --train-config baseline_lightgbm
+```
+
+walk-forward は、各リバランス時点までの過去データだけで再学習し、その時点の銘柄群を予測します。
+
+見るべき指標:
+
+- `total_return`
+- `benchmark_total_return`
+- `avg_portfolio_return`
+- `win_rate`
+- `max_drawdown`
+- `trained_window_count`
+
+## ユースケース 10: 2 つのモデルを同条件で比較したい
+
+最新の学習レポートと walk-forward レポートを使う場合:
+
+```bash
+python -m stock_ai report compare-models
+```
+
+ファイルを明示したい場合:
+
+```bash
+python -m stock_ai report compare-models \
+  --left-train-report-path reports/tables/train_baseline_logreg_v1_YYYYMMDDTHHMMSSZ.json \
+  --right-train-report-path reports/tables/train_baseline_lightgbm_v1_YYYYMMDDTHHMMSSZ.json \
+  --left-walk-forward-report-path reports/tables/backtest_top_n_hold_60bd_walk_forward_YYYYMMDDTHHMMSSZ.json \
+  --right-walk-forward-report-path reports/tables/backtest_top_n_hold_60bd_walk_forward_YYYYMMDDTHHMMSSZ.json
+```
+
+出力先:
+
+- `reports/tables/model_comparison_*.json`
+- `reports/tables/model_comparison_*.md`
+
+## ユースケース 11: 今のおすすめ標準フロー
+
+通常運用で一番無難なのは次です。
+
+1. `data fetch-prices`
+2. `data fetch-macro`
+3. `data normalize-prices`
+4. `data normalize-macro`
+5. `data build-universe`
+6. `features build-labels`
+7. `features build-dataset`
+8. `train run --config baseline_logreg`
+9. `train run --config baseline_lightgbm`
+10. `backtest walk-forward --train-config baseline_logreg`
+11. `backtest walk-forward --train-config baseline_lightgbm`
+12. `report compare-models`
+13. 良い方のモデルで `inference predict`
+
+この一連を 1 本で回したい場合は、以下を使えます。
+
+```bash
+bash scripts/run_workflow.sh
+```
+
+既定では比較結果から `baseline_logreg` と `baseline_lightgbm` のどちらを推論に使うか自動選択します。
+
+環境変数:
+
+- `PREDICT_MODEL=best`
+- `PREDICT_MODEL=baseline_logreg`
+- `PREDICT_MODEL=baseline_lightgbm`
+- `RUN_FUNDAMENTALS=1`
+
+例:
+
+```bash
+PREDICT_MODEL=baseline_lightgbm bash scripts/run_workflow.sh
+RUN_FUNDAMENTALS=1 bash scripts/run_workflow.sh
+```
+
+## よくある調整ポイント
+
+ユニバースを調整したい:
+
+- [configs/data/universe.yaml](/home/ryo/Programs/stock_ai/configs/data/universe.yaml)
+
+ラベル条件を変えたい:
+
+- [configs/features/labels.yaml](/home/ryo/Programs/stock_ai/configs/features/labels.yaml)
+
+特徴量セットを変えたい:
+
+- [configs/features/feature_set_baseline.yaml](/home/ryo/Programs/stock_ai/configs/features/feature_set_baseline.yaml)
+
+学習期間やモデル設定を変えたい:
+
+- [configs/train/baseline_logreg.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_logreg.yaml)
+- [configs/train/baseline_lightgbm.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_lightgbm.yaml)
+
+バックテスト条件を変えたい:
+
+- [configs/backtest/default.yaml](/home/ryo/Programs/stock_ai/configs/backtest/default.yaml)
+
+## よくある詰まり方
+
+`No files found` が出る:
+
+- 前段のコマンドをまだ実行していないことが多いです
+- `data/raw`、`data/interim`、`data/processed` の順で出力があるか確認します
+
+`EDINET API key is missing` が出る:
+
+- `EDINET_API_KEY` を設定してから実行します
+
+`No liquidity-filtered universe available` が出る:
+
+- 先に `python -m stock_ai data build-universe` を実行します
+
+銘柄数が少なすぎる:
+
+- `min_average_daily_value_jpy` を下げます
+- `max_tickers` を増やします
+- `candidate_tickers` を増やします
+
+モデル比較で差が出ない:
+
+- ユニバースが小さすぎる可能性があります
+- `top_n` が候補銘柄数に対して大きすぎる可能性があります
+
+## 補足
+
+このシステムは、現段階では研究・分析・検証用途の個人利用を前提にしています。
+まずは `walk-forward` と比較レポートを見ながら、設定とユニバースを調整していく使い方が安全です。

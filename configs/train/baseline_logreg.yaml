@@ -1,0 +1,37 @@
+experiment:
+  name: baseline_logreg_v1
+  random_seed: 42
+
+dataset:
+  feature_set: baseline_v1
+  label_name: rise_10pct_in_60bd
+  train_start_date: "2015-01-01"
+  validation_start_date: "2022-01-01"
+  test_start_date: "2024-01-01"
+
+split:
+  strategy: time_series
+  embargo_days: 0
+
+model:
+  type: logistic_regression
+  params:
+    penalty: l2
+    c: 1.0
+    class_weight: balanced
+    max_iter: 1000
+
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - roc_auc
+    - pr_auc
+  top_k_analysis:
+    enabled: true
+    top_k_values:
+      - 10
+      - 30
+      - 50

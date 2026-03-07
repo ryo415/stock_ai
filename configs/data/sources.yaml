@@ -1,0 +1,60 @@
+sources:
+  prices:
+    provider: yfinance
+    priority: free_first
+    candidates:
+      - yfinance
+      - stooq
+      - jp_public_source_tbd
+    format: daily_ohlcv
+    adjusted_close_required: true
+
+  fundamentals:
+    provider: edinet
+    priority: free_first
+    candidates:
+      - edinet
+      - jp_public_source_tbd
+    api_key_env_var: EDINET_API_KEY
+    document_list_type: 2
+    document_types:
+      - annual_securities_report
+      - quarterly_securities_report
+    target_form_codes:
+      - "030000"
+      - "043000"
+      - "043001"
+      - "043002"
+    download_preference:
+      primary: csv
+      fallback: xbrl_zip
+    required_fields:
+      - revenue
+      - operating_income
+      - net_income
+      - eps
+      - book_value
+    use_published_at: true
+
+  macro:
+    provider: yfinance
+    priority: free_first
+    candidates:
+      - yfinance
+      - fred
+      - boj
+      - mof
+      - statistics_bureau_japan
+    series:
+      - usd_jpy
+      - nikkei225
+      - topix
+    ticker_map:
+      usd_jpy: JPY=X
+      nikkei225: ^N225
+      topix: 1306.T
+
+metadata:
+  save_fetch_history: true
+  save_license_notes: true
+  save_raw_response: true
