@@ -93,6 +93,14 @@ stock_ai/
 pip install -e .
 ```
 
+Docker Compose で Web UI を起動する場合:
+
+```bash
+docker compose up --build
+```
+
+起動後は `http://localhost:8501` で Web UI を開けます。
+
 設定ファイルは YAML で管理し、`stock_ai.utils.config` から読み込みます。
 
 ```python

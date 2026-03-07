@@ -19,6 +19,28 @@ EDINET を使う場合だけ、事前に API キーを設定します。
 export EDINET_API_KEY=your_api_key
 ```
 
+## Web UI を使う
+
+Docker Compose で Web UI を起動する場合:
+
+```bash
+docker compose up --build
+```
+
+起動後に `http://localhost:8501` を開くと、以下をブラウザから実行できます。
+
+- 最新成果物の確認
+- Logistic Regression / LightGBM の学習
+- walk-forward 実行
+- モデル比較レポート生成
+- 指定日付での推論
+
+停止する場合:
+
+```bash
+docker compose down
+```
+
 ## まず確認すること
 
 設定を確認したいとき:

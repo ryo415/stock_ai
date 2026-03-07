@@ -1,0 +1,13 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock_ai_web
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./:/app
+    environment:
+      - EDINET_API_KEY=${EDINET_API_KEY:-}
+    restart: unless-stopped
