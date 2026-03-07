@@ -223,6 +223,14 @@ python -m stock_ai report compare-models
 
 比較結果は `reports/tables/model_comparison_*.json` と `reports/tables/model_comparison_*.md` に保存されます。
 
+過去の推論結果が実際に当たっていたかを確認するには以下を使います。
+
+```bash
+python -m stock_ai report evaluate-prediction
+```
+
+これは prediction ファイルと dataset を照合し、実現した `future_return_60bd` と `label` をまとめます。
+
 `fetch-fundamentals` は現在 EDINET API を使い、実行前に `EDINET_API_KEY` 環境変数が必要です。
 
 ```bash

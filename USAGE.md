@@ -30,16 +30,65 @@ docker compose up --build
 起動後に `http://localhost:8501` を開くと、以下をブラウザから実行できます。
 
 - 最新成果物の確認
+- データ取得から dataset 更新
 - Logistic Regression / LightGBM の学習
 - walk-forward 実行
 - モデル比較レポート生成
 - 指定日付での推論
+- 過去推論の答え合わせ
 
 停止する場合:
 
 ```bash
 docker compose down
 ```
+
+### Web UI の画面ごとの使い方
+
+`Overview`
+
+- 最新の dataset、ユニバース、比較レポート、推論結果を確認する画面です
+- 直近の状況を把握したいときに最初に開きます
+
+`Data Pipeline`
+
+- 価格取得、market 取得、正規化、ユニバース生成、labels 生成、dataset 生成を行う画面です
+- `Start Date` と `End Date` はカレンダーから指定できます
+- `財務データを今回更新する` をオンにした場合だけ、EDINET から財務データを取り直します
+
+`Training`
+
+- `baseline_logreg` と `baseline_lightgbm` を学習する画面です
+- 最新の dataset を使ってモデルを更新します
+
+`Walk-Forward`
+
+- 時系列の実運用に近い評価を行う画面です
+- 再学習を繰り返しながら、各時点の予測性能を検証します
+
+`Compare`
+
+- 2 つのモデルを同条件で比較する画面です
+- 学習結果と walk-forward の両方をまとめて確認します
+
+`Inference`
+
+- 指定日時点での推論を行う画面です
+- その日から約60営業日後に10%以上上がる確率を銘柄ごとに出します
+- あわせて、保存済み prediction の答え合わせもここで実行できます
+
+`Artifacts`
+
+- 生成済みのユニバース、dataset、モデル、比較レポート、推論結果の保存先を確認する画面です
+
+### Web UI でのおすすめ操作順
+
+1. `Data Pipeline` で価格・market・dataset を更新
+2. `Training` で 2 モデルを学習
+3. `Walk-Forward` で 2 モデルを評価
+4. `Compare` で比較レポートを生成
+5. `Inference` で良い方のモデルを使って推論
+6. 過去推論を検証したい場合は同じ `Inference` 画面で答え合わせ
 
 ## まず確認すること
 
@@ -250,6 +299,76 @@ python -m stock_ai report compare-models \
 
 - `reports/tables/model_comparison_*.json`
 - `reports/tables/model_comparison_*.md`
+
+## ユースケース 10.5: 過去の推論が実際に当たっていたか確認したい
+
+最新の prediction を評価する場合:
+
+```bash
+python -m stock_ai report evaluate-prediction
+```
+
+ファイルを明示する場合:
+
+```bash
+python -m stock_ai report evaluate-prediction \
+  --prediction-input-path reports/tables/predictions/predict_default_inference_YYYYMMDDTHHMMSSZ.csv \
+  --dataset-input-path data/processed/datasets/dataset_baseline_v1_YYYYMMDDTHHMMSSZ.csv
+```
+
+出力先:
+
+- `reports/tables/prediction_evaluation_*.json`
+- `reports/tables/prediction_evaluation_*.csv`
+
+見るべき項目:
+
+- `accuracy`
+- `predicted_positive_count`
+- `realized_positive_count`
+- `avg_realized_future_return_top5`
+- `positive_rate_top5`
+
+### 過去推論の答え合わせ手順
+
+1. まず過去日付で推論する
+
+```bash
+python -m stock_ai inference predict \
+  --config default \
+  --train-config baseline_lightgbm \
+  --prediction-date 2025-03-05
+```
+
+2. その prediction ファイルを評価する
+
+```bash
+python -m stock_ai report evaluate-prediction
+```
+
+3. `prediction_evaluation_*.json` を見て、上位候補が実際にどうだったかを確認する
+
+特に見る項目:
+
+- `avg_realized_future_return_top5`
+  - 推論上位 5 銘柄の実際の平均リターン
+- `positive_rate_top5`
+  - 推論上位 5 銘柄のうち、実際に 10%以上上昇した割合
+- `predicted_positive_count`
+  - モデルが `prediction=1` と判断した銘柄数
+- `realized_positive_count`
+  - 実際に条件達成した銘柄数
+
+### Web UI で過去推論を答え合わせする手順
+
+1. `Inference` 画面で `Prediction Date` を指定して `Run Inference`
+2. その下の `Evaluate Latest Prediction` を押す
+3. `Latest Evaluation Summary` で結果を確認する
+
+補足:
+
+- 過去推論の答え合わせは、単発確認として有効です
+- モデル調整の主軸は、引き続き `Walk-Forward` と `Compare` に置くのが安全です
 
 ## ユースケース 11: 今のおすすめ標準フロー
 

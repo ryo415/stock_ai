@@ -35,3 +35,28 @@ def run_compare_models_command(
         "markdown_output_path": str(result.markdown_output_path),
         "metadata_path": str(result.metadata_path),
     }
+
+
+def run_evaluate_prediction_command(
+    prediction_input_path: str | None = None,
+    dataset_input_path: str | None = None,
+) -> dict[str, Any]:
+    """Evaluate a saved prediction file against realized labels."""
+    try:
+        from stock_ai.reporting.prediction_eval import evaluate_prediction
+    except ImportError as exc:
+        raise ConfigError("Reporting dependencies are missing. Install project dependencies first.") from exc
+
+    result = evaluate_prediction(
+        prediction_input_path=prediction_input_path,
+        dataset_input_path=dataset_input_path,
+    )
+    return {
+        "command": "report evaluate-prediction",
+        "prediction_input_path": str(result.prediction_input_path),
+        "dataset_input_path": str(result.dataset_input_path),
+        "report_output_path": str(result.report_output_path),
+        "details_output_path": str(result.details_output_path),
+        "metadata_path": str(result.metadata_path),
+        "row_count": result.row_count,
+    }

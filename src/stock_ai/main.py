@@ -21,7 +21,7 @@ from stock_ai.features.commands import run_build_dataset_command
 from stock_ai.features.commands import run_build_labels_command
 from stock_ai.inference.commands import run_predict_command
 from stock_ai.modeling.commands import run_train_command
-from stock_ai.reporting.commands import run_compare_models_command
+from stock_ai.reporting.commands import run_compare_models_command, run_evaluate_prediction_command
 from stock_ai.utils import ConfigError, get_configs_root, list_config_files, load_config
 
 
@@ -299,6 +299,12 @@ def build_parser() -> argparse.ArgumentParser:
     report_compare_parser.add_argument("--left-name", default="baseline_logreg")
     report_compare_parser.add_argument("--right-name", default="baseline_lightgbm")
     report_compare_parser.set_defaults(handler=handle_report_compare_models)
+    report_eval_parser = report_subparsers.add_parser(
+        "evaluate-prediction", help="Evaluate a saved prediction file against realized returns."
+    )
+    report_eval_parser.add_argument("--prediction-input-path", default=None)
+    report_eval_parser.add_argument("--dataset-input-path", default=None)
+    report_eval_parser.set_defaults(handler=handle_report_evaluate_prediction)
 
     return parser
 
@@ -465,6 +471,16 @@ def handle_report_compare_models(args: argparse.Namespace) -> int:
         right_walk_forward_report_path=args.right_walk_forward_report_path,
         left_name=args.left_name,
         right_name=args.right_name,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_report_evaluate_prediction(args: argparse.Namespace) -> int:
+    """Handle report evaluate-prediction subcommand."""
+    result = run_evaluate_prediction_command(
+        prediction_input_path=args.prediction_input_path,
+        dataset_input_path=args.dataset_input_path,
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0

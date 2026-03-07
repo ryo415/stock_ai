@@ -22,7 +22,6 @@ from stock_ai.data.commands import (
 from stock_ai.features.commands import run_build_dataset_command, run_build_labels_command
 from stock_ai.inference.commands import run_predict_command
 from stock_ai.modeling.commands import run_train_command
-from stock_ai.reporting.commands import run_compare_models_command
 from stock_ai.utils import ConfigError
 from stock_ai.utils.io import project_path
 
@@ -62,6 +61,10 @@ def _latest_prediction_path() -> Path | None:
     parquet_files = sorted(predictions_dir.glob("predict_default_inference_*.parquet"))
     candidates = csv_files + parquet_files
     return sorted(candidates)[-1] if candidates else None
+
+
+def _latest_prediction_evaluation_path() -> Path | None:
+    return _latest_file("reports/tables", "prediction_evaluation_*.json")
 
 
 def render_overview() -> None:
@@ -246,6 +249,13 @@ def render_data_pipeline() -> None:
                 st.json(result)
             except ConfigError as exc:
                 st.error(str(exc))
+        if st.button("Build Universe", use_container_width=True):
+            try:
+                result = run_build_universe_command()
+                st.success("Universe build completed")
+                st.json(result)
+            except ConfigError as exc:
+                st.error(str(exc))
 
     if run_fundamentals:
         st.markdown("**財務データ取得**")
@@ -261,13 +271,6 @@ def render_data_pipeline() -> None:
                     end_date=normalized_end_date,
                 )
                 st.success("財務データ取得が完了しました")
-                st.json(result)
-            except ConfigError as exc:
-                st.error(str(exc))
-        if st.button("Build Universe", use_container_width=True):
-            try:
-                result = run_build_universe_command()
-                st.success("Universe build completed")
                 st.json(result)
             except ConfigError as exc:
                 st.error(str(exc))
@@ -313,6 +316,8 @@ def render_compare() -> None:
     )
     if st.button("Generate Comparison Report", use_container_width=True):
         try:
+            from stock_ai.reporting.commands import run_compare_models_command
+
             result = run_compare_models_command()
             st.success("Model comparison completed")
             st.json(result)
@@ -360,6 +365,38 @@ def render_inference() -> None:
                 )
         except ConfigError as exc:
             st.error(str(exc))
+
+    st.markdown("**Past Prediction Evaluation**")
+    st.caption(
+        "過去の prediction ファイルを、dataset に入っている実現 future_return_60bd / label と照合します。"
+        "過去日付の推論が実際に当たっていたかを確認するときに使います。"
+    )
+    latest_prediction = _latest_prediction_path()
+    latest_evaluation = _latest_prediction_evaluation_path()
+    st.text_input(
+        "Latest Prediction File",
+        value=str(latest_prediction) if latest_prediction else "",
+        disabled=True,
+        key="infer_latest_prediction_file",
+    )
+    if st.button("Evaluate Latest Prediction", use_container_width=True):
+        try:
+            from stock_ai.reporting.commands import run_evaluate_prediction_command
+
+            result = run_evaluate_prediction_command(
+                prediction_input_path=str(latest_prediction) if latest_prediction else None,
+                dataset_input_path=str(dataset_path) if dataset_path else None,
+            )
+            st.success("Prediction evaluation completed")
+            st.json(result)
+        except ConfigError as exc:
+            st.error(str(exc))
+
+    latest_evaluation = _latest_prediction_evaluation_path()
+    evaluation_payload = _load_json(latest_evaluation)
+    if evaluation_payload:
+        st.markdown("**Latest Evaluation Summary**")
+        st.json(evaluation_payload.get("summary", {}))
 
 
 def render_files() -> None:
