@@ -1,17 +1,31 @@
 # stock_ai
 
-個人で構築する株式予測 AI プロジェクトの初期リポジトリです。
+個人で構築する株式予測 AI プロジェクトです。
 目的は、過去のさまざまな情報から「約 60 営業日後に 10%以上上昇しているか」を分類するモデルを作ることです。
 
 ## 現在の状態
 
-現時点では、最小のデータ取得、特徴量生成、学習、推論、バックテストまで通る土台を実装済みです。
-初版ドキュメントとして以下を用意しています。
+現時点では、以下が一通り動く状態です。
+
+- 価格、market、fundamentals の取得
+- 流動性フィルタ付きユニバース生成
+- labels / dataset 生成
+- Logistic Regression / LightGBM 学習
+- backtest / walk-forward 評価
+- モデル比較レポート生成
+- 指定日付での推論
+- 過去推論の答え合わせ
+- Docker Compose で起動する Web UI
+
+ドキュメントは以下を用意しています。
 
 - [要件定義書](./docs/requirements.md)
 - [アーキテクチャ設計](./docs/architecture.md)
 - [実装タスク一覧](./docs/tasks.md)
+- [利用手順と各種パラメータ説明](./USAGE.md)
 - [エージェント運用ルール](./AGENTS.md)
+
+日常利用やユースケース別の使い方、各パラメータの意味は [USAGE.md](./USAGE.md) にまとめています。
 
 ## 目標
 
@@ -100,6 +114,7 @@ docker compose up --build
 ```
 
 起動後は `http://localhost:8501` で Web UI を開けます。
+Web UI では、`Overview`、`Data Pipeline`、`Training`、`Walk-Forward`、`Compare`、`Inference`、`Artifacts` を使えます。
 
 設定ファイルは YAML で管理し、`stock_ai.utils.config` から読み込みます。
 
@@ -117,7 +132,7 @@ python -m stock_ai config list data
 python -m stock_ai config show data universe
 ```
 
-現時点の実処理サブコマンドは、`fetch-prices`、`fetch-fundamentals`、`fetch-macro`、`normalize-prices`、`normalize-fundamentals`、`normalize-macro`、`build-labels`、`build-dataset`、`train run`、`inference predict`、`backtest run`、`backtest walk-forward` です。`fetch-fundamentals` の実データ取得には EDINET API キーが必要です。
+現時点の実処理サブコマンドは、`fetch-prices`、`fetch-fundamentals`、`fetch-macro`、`normalize-prices`、`normalize-fundamentals`、`normalize-macro`、`build-universe`、`build-labels`、`build-dataset`、`train run`、`inference predict`、`backtest run`、`backtest walk-forward`、`report compare-models`、`report evaluate-prediction` です。`fetch-fundamentals` の実データ取得には EDINET API キーが必要です。
 
 ```bash
 python -m stock_ai data fetch-prices
@@ -125,12 +140,15 @@ python -m stock_ai data fetch-fundamentals
 python -m stock_ai data fetch-macro
 python -m stock_ai data normalize-prices
 python -m stock_ai data normalize-fundamentals
+python -m stock_ai data build-universe
 python -m stock_ai features build-labels
 python -m stock_ai features build-dataset
 python -m stock_ai train run --config baseline_logreg
 python -m stock_ai inference predict --config default --train-config baseline_logreg
 python -m stock_ai backtest run --config default --train-config baseline_logreg
 python -m stock_ai backtest walk-forward --config default --train-config baseline_logreg
+python -m stock_ai report compare-models
+python -m stock_ai report evaluate-prediction
 ```
 
 `fetch-prices` は現在 `yfinance` を使い、`configs/data/universe.yaml` の `ticker_selection` を取得対象として使います。今は `candidate_tickers` から価格を取得し、`data build-universe` で平均売買代金条件を満たす銘柄だけを自動選定できます。
@@ -146,7 +164,7 @@ python -m stock_ai data fetch-prices --tickers 7203.T 6758.T --start-date 2024-0
 python -m stock_ai data build-universe
 ```
 
-生成結果は `data/processed/universe/liquidity_universe_*.json` に保存され、以後の `fetch-prices` は最新の生成済みユニバースを優先して使います。まだ生成済みファイルがない場合は `candidate_tickers` にフォールバックします。
+生成結果は `data/processed/universe/liquidity_universe_*.json` に保存され、以後の `fetch-prices` は最新の生成済みユニバースを優先して使います。まだ生成済みファイルがない場合は `candidate_tickers` にフォールバックします。現在は、候補母集団から直近売買代金ベースで上位 30 銘柄へ絞る運用を前提にしています。
 
 市場指数と為替の系列は以下で取得できます。
 
@@ -191,7 +209,7 @@ python -m stock_ai train run --config baseline_lightgbm
 
 モデルは `models/`、評価結果は `reports/tables/` に保存されます。
 
-学習済みモデルで最新日付の銘柄群を実推論するには以下を実行します。
+学習済みモデルで最新日付または指定日付の銘柄群を実推論するには以下を実行します。
 
 ```bash
 python -m stock_ai inference predict --config default --train-config baseline_logreg
@@ -230,6 +248,8 @@ python -m stock_ai report evaluate-prediction
 ```
 
 これは prediction ファイルと dataset を照合し、実現した `future_return_60bd` と `label` をまとめます。
+
+実際の運用手順、Web UI での使い方、過去推論の答え合わせ、各種設定パラメータの意味は [USAGE.md](./USAGE.md) を参照してください。
 
 `fetch-fundamentals` は現在 EDINET API を使い、実行前に `EDINET_API_KEY` 環境変数が必要です。
 

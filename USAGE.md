@@ -433,6 +433,270 @@ RUN_FUNDAMENTALS=1 bash scripts/run_workflow.sh
 
 - [configs/backtest/default.yaml](/home/ryo/Programs/stock_ai/configs/backtest/default.yaml)
 
+## 主要パラメータの意味
+
+このプロジェクトでは、設定値は「何を対象にするか」「どの未来を当てにいくか」「どう評価するか」を決めます。
+ここでは、現時点の主要パラメータとその意味を簡潔にまとめます。
+
+### ユニバース設定
+
+対象ファイル:
+
+- [configs/data/universe.yaml](/home/ryo/Programs/stock_ai/configs/data/universe.yaml)
+
+`universe.liquidity_filter.lookback_days`
+
+- 直近何営業日で流動性を測るか
+- 現在は `20`
+- 1か月弱の売買状況で見る設定です
+- 短くすると直近の変化に敏感になります
+- 長くすると安定しますが、最近の変化は拾いにくくなります
+
+`universe.liquidity_filter.min_observation_days`
+
+- 流動性判定に必要な最低観測日数
+- 現在は `15`
+- 欠損や上場直後銘柄をある程度除くための条件です
+- 下げると候補は増えますが、安定性は下がります
+
+`universe.liquidity_filter.min_average_daily_value_jpy`
+
+- 平均売買代金の下限
+- 現在は `3000000000` 円
+- 低流動性銘柄を除いて、実運用で売買しやすい銘柄に寄せるための条件です
+- 下げると対象銘柄は増えます
+- 上げるとより大型・高流動性寄りになります
+
+`universe.liquidity_filter.max_tickers`
+
+- 最終的に採用する銘柄数
+- 現在は `30`
+- 実運用寄りに、流動性上位だけへ絞る設定です
+- 候補母集団とは別で、実際にモデル対象へ残す数です
+
+`universe.ticker_selection.candidate_tickers`
+
+- 流動性フィルタ前の候補母集団
+- 現在は `200` 銘柄
+- 日本株の中で比較的流動性の高い大型・中大型銘柄を中心に入れています
+- 広げるほど上位流動性銘柄を選びやすくなりますが、取得コストは増えます
+
+### ラベル設定
+
+対象ファイル:
+
+- [configs/features/labels.yaml](/home/ryo/Programs/stock_ai/configs/features/labels.yaml)
+
+`label.threshold`
+
+- 何%以上上がれば `label=1` とするか
+- 現在は `0.10`
+- つまり 10%以上上昇で成功判定です
+- 下げると positive が増え、上げると positive は減ります
+
+`label.horizon_business_days`
+
+- 何営業日先を予測対象にするか
+- 現在は `60`
+- 約3か月先を当てにいく設定です
+- 短くすると短期寄り、長くすると中期寄りになります
+
+### 特徴量設定
+
+対象ファイル:
+
+- [configs/features/feature_set_baseline.yaml](/home/ryo/Programs/stock_ai/configs/features/feature_set_baseline.yaml)
+
+`price_features`
+
+- 価格変化率、移動平均乖離、ボラティリティ、出来高変化などを使うかを決めます
+- ベースラインでは、まず価格だけで end-to-end を成立させるための基本特徴量です
+
+`relative_strength`
+
+- TOPIX や日経平均に対してどれだけ強いかを見る特徴量です
+- 個別銘柄の地合いに対する相対的な強さを測る意図です
+
+`fundamentals`
+
+- PER、PBR、ROE、売上成長率、営業利益率などを使う設定です
+- 長めの保有期間では価格だけでなく財務も効く可能性があるため入れています
+
+### 学習期間設定
+
+対象ファイル:
+
+- [configs/train/baseline_logreg.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_logreg.yaml)
+- [configs/train/baseline_lightgbm.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_lightgbm.yaml)
+
+`dataset.train_start_date`
+
+- 学習データの開始日
+- 現在は `2015-01-01`
+- 長めの履歴を使って市場局面のばらつきを入れる意図です
+
+`dataset.validation_start_date`
+
+- validation の開始日
+- 現在は `2022-01-01`
+- 学習データと評価データを時系列で分けるための境目です
+
+`dataset.test_start_date`
+
+- test の開始日
+- 現在は `2024-01-01`
+- 比較的新しい期間を out-of-sample として残すための設定です
+
+### Logistic Regression の主なパラメータ
+
+対象ファイル:
+
+- [configs/train/baseline_logreg.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_logreg.yaml)
+
+`model.params.c`
+
+- 正則化の強さ
+- 現在は `1.0`
+- 小さくすると保守的、大きくすると複雑な当てはまりを許します
+
+`model.params.class_weight`
+
+- クラス不均衡への対応
+- 現在は `balanced`
+- 上昇する銘柄が少ないときでも学習しやすくするための設定です
+
+`model.params.max_iter`
+
+- 最適化の反復回数
+- 現在は `1000`
+- 収束不足を避けるために標準より長めにしています
+
+### LightGBM の主なパラメータ
+
+対象ファイル:
+
+- [configs/train/baseline_lightgbm.yaml](/home/ryo/Programs/stock_ai/configs/train/baseline_lightgbm.yaml)
+
+`model.params.learning_rate`
+
+- 1本ごとの木の学習率
+- 現在は `0.05`
+- やや控えめで安定寄りの設定です
+
+`model.params.num_leaves`
+
+- 木の複雑さ
+- 現在は `31`
+- ベースラインとして過剰に複雑にしすぎない設定です
+
+`model.params.n_estimators`
+
+- 木の本数
+- 現在は `300`
+- ある程度の表現力を持たせつつ、学習時間を抑えるための初期値です
+
+`model.params.subsample`
+
+- 各木で使うサンプル比率
+- 現在は `0.8`
+- 過学習抑制のため、毎回全件を使わない設定です
+
+`model.params.colsample_bytree`
+
+- 各木で使う特徴量比率
+- 現在は `0.8`
+- 特徴量の使いすぎによる過学習を少し抑えます
+
+`model.params.class_weight`
+
+- クラス不均衡への対応
+- 現在は `balanced`
+
+### 推論設定
+
+対象ファイル:
+
+- [configs/inference/default.yaml](/home/ryo/Programs/stock_ai/configs/inference/default.yaml)
+
+`selection.return_top_n`
+
+- 推論結果として何銘柄返すか
+- 出力を見やすくするための件数制御です
+- backtest の `top_n` とは別です
+
+`selection.sort_by`
+
+- 通常は `probability`
+- 確率の高い順に候補を並べます
+
+### バックテスト設定
+
+対象ファイル:
+
+- [configs/backtest/default.yaml](/home/ryo/Programs/stock_ai/configs/backtest/default.yaml)
+
+`backtest.holding_period_business_days`
+
+- 何営業日保有する前提で評価するか
+- 現在は `60`
+- ラベルと同じ horizon に揃えています
+
+`backtest.rebalance_frequency`
+
+- 何頻度で銘柄を入れ替えるか
+- 現在は `monthly`
+- 個人運用でも回しやすい月次です
+
+`portfolio.top_n`
+
+- 各時点で何銘柄採用するか
+- 現在は `5`
+- 30銘柄ユニバースに対して、厳選型に寄せた設定です
+
+`portfolio.weighting`
+
+- 現在は `equal_weight`
+- まずは単純で比較しやすい等金額配分にしています
+
+`costs.fee_bps`
+
+- 片道手数料の想定
+- 現在は `10bps`
+
+`costs.slippage_bps`
+
+- 片道スリッページの想定
+- 現在は `5bps`
+
+`execution.allow_overlap_positions`
+
+- 前のポジション保有中でも次のリバランスを重ねるか
+- 現在は `false`
+- 単純な非オーバーラップ運用で評価しています
+
+### walk-forward 設定
+
+対象ファイル:
+
+- [configs/backtest/default.yaml](/home/ryo/Programs/stock_ai/configs/backtest/default.yaml)
+
+`walk_forward.prediction_start_date`
+
+- walk-forward をどこから始めるか
+- 現在は `2024-01-01`
+- 比較的新しい期間で実運用近い評価を見るためです
+
+`walk_forward.training_start_date`
+
+- 各時点の再学習で、どこから履歴を使い始めるか
+- 現在は `2015-01-01`
+
+`walk_forward.min_training_rows`
+
+- 再学習を行うための最小学習行数
+- 現在は `252`
+- 少なすぎるデータで学習しないようにする保険です
+
 ## よくある詰まり方
 
 `No files found` が出る:
